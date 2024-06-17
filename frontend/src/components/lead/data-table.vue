@@ -22,6 +22,7 @@ import {
   useVueTable,
   getSortedRowModel,
   getFilteredRowModel,
+  getExpandedRowModel,
 } from "@tanstack/vue-table";
 
 import {
@@ -30,6 +31,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableGroupedCell,
   TableRow,
 } from "@/components/ui/table";
 import { ref } from "vue";
@@ -43,6 +45,7 @@ const sorting = ref<SortingState>([]);
 const columnFilters = ref<ColumnFiltersState>([]);
 const columnVisibility = ref<VisibilityState>({});
 const rowSelection = ref({});
+const rowExpanded = ref({});
 
 const table = useVueTable({
   get data() {
@@ -54,6 +57,7 @@ const table = useVueTable({
   getCoreRowModel: getCoreRowModel(),
   getPaginationRowModel: getPaginationRowModel(),
   getSortedRowModel: getSortedRowModel(),
+  getExpandedRowModel: getExpandedRowModel(),
   onSortingChange: (updaterOrValue) => valueUpdater(updaterOrValue, sorting),
   onColumnFiltersChange: (updaterOrValue) =>
     valueUpdater(updaterOrValue, columnFilters),
@@ -62,6 +66,8 @@ const table = useVueTable({
     valueUpdater(updaterOrValue, columnVisibility),
   onRowSelectionChange: (updaterOrValue) =>
     valueUpdater(updaterOrValue, rowSelection),
+  onExpandedChange: (updaterOrValue) =>
+    valueUpdater(updaterOrValue, rowExpanded),
   state: {
     get sorting() {
       return sorting.value;
@@ -74,6 +80,9 @@ const table = useVueTable({
     },
     get rowSelection() {
       return rowSelection.value;
+    },
+    get expanded() {
+      return rowExpanded.value;
     },
   },
 });
@@ -116,12 +125,18 @@ const table = useVueTable({
     </div>
     <div class="border rounded-md">
       <Table>
-        <TableHeader>
+        <TableHeader class="border-separate border-spacing-0">
           <TableRow
             v-for="headerGroup in table.getHeaderGroups()"
             :key="headerGroup.id"
           >
-            <TableHead v-for="header in headerGroup.headers" :key="header.id">
+            <TableHead
+              v-for="header in headerGroup.headers"
+              :key="header.id"
+              class="border-r"
+              :width="header.column.columnDef.id === 'index' ? '6rem' : 'auto'"
+              @click="table.getToggleAllRowsExpandedHandler()"
+            >
               <FlexRender
                 v-if="!header.isPlaceholder"
                 :render="header.column.columnDef.header"
@@ -136,12 +151,20 @@ const table = useVueTable({
               v-for="row in table.getRowModel().rows"
               :key="row.id"
               :data-state="row.getIsSelected() ? 'selected' : undefined"
+              @click="row.getToggleExpandedHandler()"
             >
               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                <FlexRender
-                  :render="cell.column.columnDef.cell"
-                  :props="cell.getContext()"
+                <TableGroupedCell
+                  v-if="cell.getIsGrouped()"
+                  :row="row"
+                  :cell="cell"
                 />
+                <div v-else-if="!cell.getIsPlaceholder()">
+                  <FlexRender
+                    :render="cell.column.columnDef.cell"
+                    :props="cell.getContext()"
+                  />
+                </div>
               </TableCell>
             </TableRow>
           </template>

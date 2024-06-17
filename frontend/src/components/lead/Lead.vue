@@ -29,7 +29,6 @@ const domen = "http://localhost:3010";
 
 async function getLeads(query: string) {
   loading.value = true;
-  debugger;
   try {
     let leads = await axios.get(`${domen}/api/leads`, {
       params: {

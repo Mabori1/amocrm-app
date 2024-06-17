@@ -9,11 +9,15 @@ import {
   username,
 } from 'amo-client.json';
 
+const url = `https://${username}.amocrm.ru/api/v4`;
+
 const myPath = './tokens.json';
 let access_token = getToken();
 const logger = new Logger('AMO');
 
 export interface Lead {
+  pipeline_id: number;
+  status_id: number;
   id: number;
   name: string;
   price: number;
@@ -35,7 +39,8 @@ export class LeadsService {
   }
 }
 
-async function leads(quer: string) {
+async function leads(query: string) {
+  query && query.length > 2 ? query : (query = '');
   let attempt = 0;
 
   try {
@@ -49,21 +54,17 @@ async function leads(quer: string) {
     if (attempt > 5) return;
     attempt += 1;
     try {
-      const query = quer;
       const answer: Lead[] = [];
 
-      const leads = await axios.get(
-        `https://${username}.amocrm.ru/api/v4/leads`,
-        {
-          headers: {
-            Authorization: `Bearer ${access_token}`,
-          },
-          params: {
-            query: query,
-            with: 'contacts',
-          },
+      const leads = await axios.get(`${url}/leads`, {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
         },
-      );
+        params: {
+          query,
+          with: 'contacts',
+        },
+      });
 
       if (!leads.data) {
         return answer;
@@ -71,6 +72,9 @@ async function leads(quer: string) {
 
       for (const item of leads.data._embedded.leads) {
         const lead: Lead = {
+          pipeline_id: item.pipeline_id,
+          status_id: item.status_id,
+
           id: item.id,
           name: item.name,
           price: item.price,
@@ -80,18 +84,21 @@ async function leads(quer: string) {
           status_color: '',
           contacts: [],
         };
-        const user = await axios.get(
-          `https://${username}.amocrm.ru/api/v4/users/${item.created_by}`,
-          {
-            headers: {
-              Authorization: `Bearer ${access_token}`,
-            },
+        const user = await axios.get(`${url}/users/${item.created_by}`, {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
           },
-        );
+        });
         lead.user = user.data.name;
 
-        const pipelines = await axios.get(
-          `https://${username}.amocrm.ru/api/v4/leads/pipelines`,
+        interface Pipeline {
+          id: number;
+          name: string;
+          color: string;
+        }
+
+        const pipelines = await axios.get<Pipeline>(
+          `${url}/leads/pipelines/${lead.pipeline_id}/statuses/${lead.status_id}`,
           {
             headers: {
               Authorization: `Bearer ${access_token}`,
@@ -99,38 +106,25 @@ async function leads(quer: string) {
           },
         );
 
-        const status =
-          pipelines.data._embedded.pipelines[0]._embedded.statuses.find(
-            (status: { id: any }) => status.id == item.status_id,
-          );
-        lead.status_name = status?.name;
-        lead.status_color = status?.color;
+        lead.status_name = pipelines.data.name;
+        lead.status_color = pipelines.data.color;
 
         for (const contact of item._embedded.contacts) {
-          const resContact = await axios.get(
-            `https://${username}.amocrm.ru/api/v4/contacts/${contact.id}`,
-            {
-              headers: {
-                Authorization: `Bearer ${access_token}`,
-              },
+          const resContact = await axios.get(`${url}/contacts/${contact.id}`, {
+            headers: {
+              Authorization: `Bearer ${access_token}`,
             },
-          );
+          });
 
-          const name = resContact.data.name;
-          const phone = resContact.data.custom_fields_values.find(
-            (fild: { field_code: string }) => fild.field_code == 'PHONE',
-          ).values[0].value;
-          const email = resContact.data.custom_fields_values.find(
-            (fild: { field_code: string }) => fild.field_code == 'EMAIL',
-          ).values[0].value;
+          const contactRes: Lead['contacts'][0] = {
+            contact_name: resContact.data.name as string,
+            contact_phone: resContact.data.custom_fields_values[0].values[0]
+              .value as string,
+            contact_email: resContact.data.custom_fields_values[1].values[0]
+              .value as string,
+          };
 
-          if (name && phone && email) {
-            lead.contacts.push({
-              contact_name: name,
-              contact_phone: phone,
-              contact_email: email,
-            });
-          }
+          lead.contacts.push(contactRes);
         }
 
         answer.push(lead);

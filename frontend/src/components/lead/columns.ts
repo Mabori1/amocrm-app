@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import type { ColumnDef } from "@tanstack/vue-table";
 import { ArrowUpDown } from "lucide-vue-next";
 import { h } from "vue";
@@ -29,18 +28,15 @@ export const columns: ColumnDef<LeadInterface>[] = [
   {
     id: "select",
     header: ({ table }) =>
-      h(Checkbox, {
-        checked: table.getIsAllPageRowsSelected(),
-        "onUpdate:checked": (value: boolean) =>
-          table.toggleAllPageRowsSelected(!!value),
-        ariaLabel: "Select all",
-      }),
+
+          h('button', {
+            onClick: () => table.getToggleAllRowsExpandedHandler(),
+          }, table.getIsAllRowsExpanded() ? '👇' : '👉'),
     cell: ({ row }) =>
-      h(Checkbox, {
-        checked: row.getIsSelected(),
-        "onUpdate:checked": (value: boolean) => row.toggleSelected(!!value),
-        ariaLabel: "Select row",
-      }),
+(row.getCanExpand() ? (
+          h('button', {
+            onClick: () => row.getToggleExpandedHandler(),
+          }, row.getIsExpanded() ? '👇' : '👉')) : ('🔵')),
     enableSorting: false,
     enableHiding: false,
   },
